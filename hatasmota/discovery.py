@@ -61,6 +61,7 @@ from .const import (
 )
 from .entity import TasmotaEntity, TasmotaEntityConfig
 from .fan import TasmotaFan, TasmotaFanConfig
+from .infrared import TasmotaInfraredEmitter
 from .light import TasmotaLight, TasmotaLightConfig
 from .models import (
     DeviceDiscoveredCallback,
@@ -528,6 +529,8 @@ def get_entity(
         return TasmotaShutter(config=config, mqtt_client=mqtt_client)
     if platform == "fan":
         return TasmotaFan(config=config, mqtt_client=mqtt_client)
+    if platform == "infrared":
+        return TasmotaInfraredEmitter(config=config, mqtt_client=mqtt_client)
     if platform == "light":
         return TasmotaLight(config=config, mqtt_client=mqtt_client)
     if platform == "sensor":
