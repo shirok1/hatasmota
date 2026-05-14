@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import json
+from dataclasses import dataclass
 from typing import Any, TypeAlias
 
 from .const import (
-    COMMAND_IRHVAC,
     COMMAND_IRSEND,
     CONF_DEEP_SLEEP,
     CONF_MAC,
@@ -77,15 +76,6 @@ def _command_name(base_command: str, send_times: int | None) -> str:
     if normalized_send_times is None:
         return base_command
     return f"{base_command}{normalized_send_times}"
-
-
-def _normalize_switch_value(value: str | bool | int | None) -> str | int | None:
-    """Normalize HVAC switch-like values."""
-    if value is None:
-        return None
-    if isinstance(value, bool):
-        return "On" if value else "Off"
-    return value
 
 
 def _normalize_json_payload(payload: dict[str, Any]) -> str:
@@ -183,34 +173,6 @@ class TasmotaIRSendRawBitstreamCommand:
     send_times: int | None = None
 
 
-TasmotaIRSwitchValue: TypeAlias = str | bool | int | None
-
-
-@dataclass(frozen=True, kw_only=True)
-class TasmotaIRHVACCommand:
-    """IRHVAC command."""
-
-    vendor: str | None = None
-    protocol: str | None = None
-    model: str | int | None = None
-    power: TasmotaIRSwitchValue = None
-    mode: str | None = None
-    celsius: str | bool | None = None
-    temp: float | int | None = None
-    fan_speed: str | int | None = None
-    swing_v: str | None = None
-    swing_h: str | None = None
-    quiet: str | bool | None = None
-    turbo: str | bool | None = None
-    econo: str | bool | None = None
-    light: str | bool | None = None
-    filter: str | bool | None = None
-    clean: str | bool | None = None
-    beep: str | bool | None = None
-    sleep: int | None = None
-    state_mode: str | None = None
-
-
 TasmotaIRSendRawCommand: TypeAlias = (
     TasmotaIRSendRawTimingsCommand | TasmotaIRSendRawBitstreamCommand
 )
@@ -258,16 +220,6 @@ class TasmotaInfraredEmitter(TasmotaAvailability, TasmotaEntity):
             COMMAND_IRSEND, command.send_times
         )
         await self._mqtt_client.publish(topic, payload)
-
-    async def send_irhvac(self, command: TasmotaIRHVACCommand) -> None:
-        """Send an IRHVAC command."""
-        if not self._cfg.supports_irhvac:
-            raise ValueError("Device does not support IRHVAC")
-
-        payload = _serialize_irhvac_command(command)
-        await self._mqtt_client.publish(
-            self._cfg.command_topic + COMMAND_IRHVAC, payload
-        )
 
 
 def _serialize_irsend_command(command: TasmotaIRSendCommand) -> str:
@@ -386,61 +338,3 @@ def _serialize_irsend_raw_bitstream_command(
         payload_parts.append(str(command.one_space))
     payload_parts.append(bit_stream)
     return ",".join(payload_parts)
-
-
-def _serialize_irhvac_command(command: TasmotaIRHVACCommand) -> str:
-    """Serialize an IRHVAC command."""
-    protocol = command.protocol.strip() if command.protocol is not None else None
-    vendor = command.vendor.strip() if command.vendor is not None else None
-    if not protocol and not vendor:
-        raise ValueError("At least one of protocol or vendor must be set")
-
-    payload: dict[str, Any] = {}
-    if protocol:
-        payload["Protocol"] = protocol
-    if vendor:
-        payload["Vendor"] = vendor
-    if command.model is not None:
-        payload["Model"] = command.model
-    if command.power is not None:
-        payload["Power"] = _normalize_switch_value(command.power)
-    if command.mode is not None:
-        payload["Mode"] = _validate_non_empty_string(command.mode, "mode")
-    if command.celsius is not None:
-        payload["Celsius"] = _normalize_switch_value(command.celsius)
-    if command.temp is not None:
-        payload["Temp"] = command.temp
-    if command.fan_speed is not None:
-        payload["FanSpeed"] = command.fan_speed
-    if command.swing_v is not None:
-        payload["SwingV"] = _validate_non_empty_string(command.swing_v, "swing_v")
-    if command.swing_h is not None:
-        payload["SwingH"] = _validate_non_empty_string(command.swing_h, "swing_h")
-    if command.quiet is not None:
-        payload["Quiet"] = _normalize_switch_value(command.quiet)
-    if command.turbo is not None:
-        payload["Turbo"] = _normalize_switch_value(command.turbo)
-    if command.econo is not None:
-        payload["Econo"] = _normalize_switch_value(command.econo)
-    if command.light is not None:
-        payload["Light"] = _normalize_switch_value(command.light)
-    if command.filter is not None:
-        payload["Filter"] = _normalize_switch_value(command.filter)
-    if command.clean is not None:
-        payload["Clean"] = _normalize_switch_value(command.clean)
-    if command.beep is not None:
-        payload["Beep"] = _normalize_switch_value(command.beep)
-    if command.sleep is not None:
-        payload["Sleep"] = _validate_non_negative_int(command.sleep, "sleep")
-    if command.state_mode is not None:
-        state_mode = _validate_non_empty_string(command.state_mode, "state_mode")
-        if state_mode not in {"SendOnly", "StoreOnly", "SendStore"}:
-            raise ValueError(
-                "state_mode must be one of SendOnly, StoreOnly, SendStore"
-            )
-        payload["StateMode"] = state_mode
-
-    if len(payload) == 1 and ("Protocol" in payload or "Vendor" in payload):
-        raise ValueError("IRHVAC command must include at least one state field")
-
-    return _normalize_json_payload(payload)
