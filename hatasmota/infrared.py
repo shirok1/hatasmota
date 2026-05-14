@@ -56,11 +56,16 @@ def _validate_positive_int(value: int | None, field_name: str) -> int | None:
     return value
 
 
+def _validate_send_times(send_times: int | None) -> None:
+    """Validate send_times is non-negative if provided."""
+    _validate_non_negative_int(send_times, "send_times")
+
+
 def _normalize_send_times(send_times: int | None) -> int | None:
-    """Normalize IRSend<x> suffix semantics."""
+    """Normalize IRSend<x> suffix: values <= 1 map to None (send once, no suffix)."""
     if send_times is None:
         return None
-    _validate_non_negative_int(send_times, "send_times")
+    _validate_send_times(send_times)
     if send_times <= 1:
         return None
     return send_times
@@ -279,7 +284,7 @@ def _serialize_irsend_command(command: TasmotaIRSendCommand) -> str:
         raise ValueError("channel must be between 1 and 16")
 
     repeat = _validate_non_negative_int(command.repeat, "repeat")
-    _normalize_send_times(command.send_times)
+    _validate_send_times(command.send_times)
 
     payload: dict[str, Any] = {"Bits": command.bits}
     if protocol is not None:
@@ -300,7 +305,7 @@ def _serialize_irsend_command(command: TasmotaIRSendCommand) -> str:
 
 def _serialize_irsend_raw_command(command: TasmotaIRSendRawCommand) -> str:
     """Serialize a raw IRSend command."""
-    _normalize_send_times(command.send_times)
+    _validate_send_times(command.send_times)
     if isinstance(command, TasmotaIRSendRawTimingsCommand):
         return _serialize_irsend_raw_timings_command(command)
     return _serialize_irsend_raw_bitstream_command(command)
